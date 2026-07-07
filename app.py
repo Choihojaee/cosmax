@@ -12,6 +12,9 @@ if not html_path.exists():
 html = html_path.read_text(encoding="utf-8")
 
 st.title("파일깎기")
-st.caption("업로드한 파일 이름을 한 번에 정리해주는 도구입니다.")
+st.caption(
+    "찐최종, 찐찐최종, 최종_진짜... 뒤죽박죽 쌓인 파일들, 이제 일일이 열어보며 확인하지 않아도 됩니다. "
+    "AI가 파일명과 내용을 함께 분석해 최신 버전을 가려내고, 원하는 규칙에 맞춰 이름을 한 번에 정리해 드립니다."
+)
 
 st.components.v1.html(html, height=2200, scrolling=True)
