@@ -123,34 +123,19 @@
       overflow-wrap: break-word;
     }
 
-    /* ── 업로드 카드 + 미리보기 카드를 나란히 배치 ── */
+    /* ── 업로드 카드 배치 ── */
     .workspace {
       display: flex;
-      gap: 24px;
-      align-items: flex-start;
       justify-content: center;
       width: 100%;
       max-width: 1100px;
     }
-    .workspace > .card {
-      flex: 0 0 560px;
-      width: auto;
-    }
+
+    /* ── 미리보기 팝업(모달) ── */
     .preview-card {
-      flex: 1 1 420px;
-      max-width: 620px;
-    }
-    @media (max-width: 900px) {
-      .workspace {
-        flex-direction: column;
-        align-items: center;
-      }
-      .workspace > .card,
-      .preview-card {
-        flex: none;
-        width: 100%;
-        max-width: 560px;
-      }
+      max-width: 640px;
+      max-height: 85vh;
+      overflow-y: auto;
     }
 
     /* ── 드롭존 ── */
@@ -475,6 +460,23 @@
     }
     .select-all-row input { accent-color: var(--accent); cursor: pointer; }
 
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+      margin-bottom: 10px;
+    }
+    .filter-checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--ink-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .filter-checkbox-label input { accent-color: var(--accent); cursor: pointer; }
+
     /* ── 다운로드 옵션 ── */
     .download-options {
       margin-top: 16px;
@@ -635,52 +637,65 @@
 
       </div>
 
-      <!-- 미리보기 -->
-      <div class="card preview-card" id="previewSection" style="display:none">
-          <div class="preview-title">변환 미리보기</div>
-
-          <label class="select-all-row">
-            <input type="checkbox" id="selectAll" class="custom-checkbox" onchange="toggleSelectAll(this)" checked />
-            전체 선택 / 해제
-          </label>
-
-          <table class="preview-table">
-            <thead>
-              <tr>
-                <th class="check-col"></th>
-                <th>변환 전</th>
-                <th class="arrow-col"></th>
-                <th>변환 후</th>
-              </tr>
-            </thead>
-            <tbody id="previewBody"></tbody>
-          </table>
-
-          <!-- 다운로드 옵션 -->
-          <div class="download-options">
-            <span class="download-options-label">다운로드 방식 선택</span>
-            <div class="radio-group">
-              <label class="radio-option">
-                <input type="radio" name="dlMode" value="zip" checked /> 📦 ZIP으로 한 번에
-              </label>
-              <label class="radio-option">
-                <input type="radio" name="dlMode" value="individual" /> 📄 파일 개별 다운로드
-              </label>
-            </div>
-          </div>
-
-          <div class="action-row">
-            <span class="selected-count" id="selectedCount"></span>
-            <button class="btn-secondary" onclick="resetPreview()">다시 수정</button>
-            <button class="btn-primary" onclick="downloadFiles()">✓ 다운로드</button>
-          </div>
-        </div>
-
       </div>
     </main>
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <!-- 미리보기 팝업 -->
+  <div class="modal-overlay" id="previewModal">
+    <div class="card preview-card" id="previewSection">
+        <div class="preview-title">변환 미리보기</div>
+
+        <label class="select-all-row">
+          <input type="checkbox" id="selectAll" class="custom-checkbox" onchange="toggleSelectAll(this)" checked />
+          전체 선택 / 해제
+        </label>
+
+        <div class="filter-row">
+          <label class="filter-checkbox-label">
+            <input type="checkbox" id="finalOnlyFilter" class="custom-checkbox" onchange="applyVersionFilter('final', this)" />
+            최종 버전만 선택하기
+          </label>
+          <label class="filter-checkbox-label">
+            <input type="checkbox" id="finalAndOriginalFilter" class="custom-checkbox" onchange="applyVersionFilter('finalAndOriginal', this)" />
+            최종 + 원본 버전만 선택하기
+          </label>
+        </div>
+
+        <table class="preview-table">
+          <thead>
+            <tr>
+              <th class="check-col"></th>
+              <th>변환 전</th>
+              <th class="arrow-col"></th>
+              <th>변환 후</th>
+            </tr>
+          </thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+
+        <!-- 다운로드 옵션 -->
+        <div class="download-options">
+          <span class="download-options-label">다운로드 방식 선택</span>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="dlMode" value="zip" checked /> 📦 ZIP으로 한 번에
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="dlMode" value="individual" /> 📄 파일 개별 다운로드
+            </label>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <span class="selected-count" id="selectedCount"></span>
+          <button class="btn-secondary" onclick="resetPreview()">다시 수정</button>
+          <button class="btn-primary" onclick="downloadFiles()">✓ 다운로드</button>
+        </div>
+      </div>
+  </div>
 
   <!-- 내용 분석 허용 팝업 -->
   <div class="modal-overlay" id="permissionModal">
@@ -1096,7 +1111,6 @@
     function generatePreview() {
       const formatInput = document.getElementById('formatInput');
       const errorEl = document.getElementById('formatError');
-      const previewSection = document.getElementById('previewSection');
       const previewBody = document.getElementById('previewBody');
       let format = formatInput.value.trim();
 
@@ -1143,7 +1157,7 @@
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="check-col"><input type="checkbox" class="custom-checkbox file-checkbox" data-idx="${i}" checked onchange="updateSelectedCount()" /></td>
+          <td class="check-col"><input type="checkbox" class="custom-checkbox file-checkbox" data-idx="${i}" data-version="${version}" data-total="${groupSizeMap.get(i)}" checked onchange="onFileCheckboxChange()" /></td>
           <td>${versionBadgeHtml(version, groupSizeMap.get(i))} ${f.name}</td>
           <td class="arrow-col">→</td>
           <td class="new-name">${newName}</td>
@@ -1152,13 +1166,44 @@
       });
 
       document.getElementById('selectAll').checked = true;
+      document.getElementById('finalOnlyFilter').checked = false;
+      document.getElementById('finalAndOriginalFilter').checked = false;
       updateSelectedCount();
-      previewSection.style.display = 'block';
-      previewSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      document.getElementById('previewModal').classList.add('show');
     }
 
     function toggleSelectAll(el) {
       document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = el.checked);
+      clearVersionFilters();
+      updateSelectedCount();
+    }
+
+    // 그룹별 버전 정보(data-version/data-total)를 기준으로 "최종만" 또는
+    // "최종+원본만" 선택하는 빠른 필터. 두 필터는 동시에 켤 수 없고,
+    // 끄면 다시 전체 선택 상태로 돌아간다.
+    function applyVersionFilter(mode, el) {
+      const finalOnly = document.getElementById('finalOnlyFilter');
+      const finalAndOriginal = document.getElementById('finalAndOriginalFilter');
+      if (mode === 'final' && el.checked) finalAndOriginal.checked = false;
+      if (mode === 'finalAndOriginal' && el.checked) finalOnly.checked = false;
+
+      document.querySelectorAll('.file-checkbox').forEach(cb => {
+        if (!el.checked) { cb.checked = true; return; }
+        const version = parseInt(cb.dataset.version);
+        const total = parseInt(cb.dataset.total);
+        cb.checked = mode === 'final' ? version === total : (version === 1 || version === total);
+      });
+
+      updateSelectedCount();
+    }
+
+    function clearVersionFilters() {
+      document.getElementById('finalOnlyFilter').checked = false;
+      document.getElementById('finalAndOriginalFilter').checked = false;
+    }
+
+    function onFileCheckboxChange() {
+      clearVersionFilters();
       updateSelectedCount();
     }
 
@@ -1171,8 +1216,18 @@
     }
 
     function resetPreview() {
-      document.getElementById('previewSection').style.display = 'none';
+      document.getElementById('previewModal').classList.remove('show');
     }
+
+    // 오버레이 바깥 클릭 / Esc 로 미리보기 팝업 닫기
+    document.getElementById('previewModal').addEventListener('click', e => {
+      if (e.target.id === 'previewModal') resetPreview();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && document.getElementById('previewModal').classList.contains('show')) {
+        resetPreview();
+      }
+    });
 
     // ── 다운로드 ──
     async function downloadFiles() {
