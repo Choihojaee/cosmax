@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>파일깎기</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #F7F6F3;
+      --ink: #1A1A1A;
+      --ink-muted: #888;
+      --accent: #2563EB;
+      --accent-light: #EFF6FF;
+      --border: #E2E0DA;
+      --white: #FFFFFF;
+      --success: #16A34A;
+      --error: #DC2626;
+      --radius: 12px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Noto Sans KR', sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    /* ── 배경 타이포 워터마크 ── */
+    .bg-text {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .bg-text span {
+      font-size: clamp(80px, 22vw, 260px);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: transparent;
+      -webkit-text-stroke: 2px #CFCABB;
+      user-select: none;
+      white-space: nowrap;
+      line-height: 1;
+      display: inline-block;
+      transform: rotate(-6deg);
+      filter:
+        blur(0.6px)
+        drop-shadow(10px 5px 0 rgba(207, 202, 187, 0.10))
+        drop-shadow(20px 10px 0 rgba(207, 202, 187, 0.06))
+        drop-shadow(30px 15px 0 rgba(207, 202, 187, 0.03));
+    }
+
+    /* ── 레이아웃 ── */
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 28px 32px 0;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .logo-dot { color: var(--accent); }
+    .tagline {
+      font-size: 12px;
+      color: var(--ink-muted);
+      font-weight: 400;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px 60px;
+      gap: 32px;
+    }
+
+    .hero {
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(22px, 4vw, 32px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.3;
+    }
+    .hero p {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--ink-muted);
+      line-height: 1.6;
+    }
+
+    /* ── 카드 ── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+      overflow-wrap: break-word;
+    }
+
+    /* ── 업로드 카드 + 미리보기 카드를 나란히 배치 ── */
+    .workspace {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      max-width: 1100px;
+    }
+    .workspace > .card {
+      flex: 0 0 560px;
+      width: auto;
+    }
+    .preview-card {
+      flex: 1 1 420px;
+      max-width: 620px;
+    }
+    @media (max-width: 900px) {
+      .workspace {
+        flex-direction: column;
+        align-items: center;
+      }
+      .workspace > .card,
+      .preview-card {
+        flex: none;
+        width: 100%;
+        max-width: 560px;
+      }
+    }
+
+    /* ── 드롭존 ── */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .dropzone-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+    }
+    .dropzone-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .dropzone-sub {
+      font-size: 12px;
+      color: var(--ink-muted);
+      line-height: 1.6;
+    }
+    .dropzone-limit {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #aaa;
+    }
+
+    /* ── 파일 목록 ── */
+    .file-list {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .file-ext {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--ink);
+      color: var(--white);
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+    .version-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      color: var(--ink-muted);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .version-badge.is-original {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .version-badge.is-latest {
+      background: #DCFCE7;
+      border-color: var(--success);
+      color: var(--success);
+    }
+    .file-name {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--ink);
+    }
+    .file-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--ink-muted);
+      font-size: 16px;
+      padding: 0 4px;
+      flex-shrink: 0;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .file-remove:hover { color: var(--error); }
+
+    .file-count {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--ink-muted);
+      text-align: right;
+    }
+
+    .group-divider {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6D28D9;
+      background: #EDE9FE;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-top: 12px;
+    }
+    .group-divider:first-child { margin-top: 0; }
+
+    .group-row td {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6D28D9;
+      background: #F5F3FF;
+      padding: 6px 10px;
+      border-radius: 4px;
+      border-bottom: none;
+    }
+
+    .content-access-toggle {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--ink-muted);
+      text-align: right;
+    }
+    .content-access-toggle a {
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    /* ── 권한 팝업 ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-box {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 28px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .modal-desc {
+      font-size: 13px;
+      color: var(--ink-muted);
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    /* ── 양식 입력 ── */
+    .format-section {
+      margin-top: 24px;
+    }
+    .format-label {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .format-hint {
+      font-size: 11px;
+      color: var(--ink-muted);
+      margin-bottom: 10px;
+      line-height: 1.6;
+      overflow-wrap: break-word;
+    }
+    .format-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .tag-btn {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      color: var(--ink);
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .tag-btn:hover {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .format-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    .format-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: 'Noto Sans KR', monospace;
+      background: var(--white);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .format-input:focus { border-color: var(--accent); }
+    .format-input::placeholder { color: #bbb; }
+
+    /* ── 버튼 ── */
+    .btn-primary {
+      padding: 12px 24px;
+      background: var(--accent);
+      color: var(--white);
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: #1D4ED8; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { background: #93C5FD; cursor: not-allowed; }
+
+    .btn-secondary {
+      padding: 10px 18px;
+      background: var(--bg);
+      color: var(--ink);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-secondary:hover { background: var(--border); }
+
+    /* ── 미리보기 테이블 ── */
+    .preview-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    .preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .preview-table th {
+      text-align: left;
+      padding: 6px 10px;
+      background: var(--bg);
+      color: var(--ink-muted);
+      font-weight: 500;
+      border-radius: 4px;
+    }
+    .preview-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      word-break: break-all;
+    }
+    .preview-table tr:last-child td { border-bottom: none; }
+    .arrow-col { color: var(--ink-muted); text-align: center; width: 24px; }
+    .new-name { color: var(--accent); font-weight: 500; }
+
+    /* ── 체크박스 ── */
+    .check-col { width: 36px; text-align: center; }
+    .custom-checkbox {
+      width: 16px; height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .select-all-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: var(--ink-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .select-all-row input { accent-color: var(--accent); cursor: pointer; }
+
+    /* ── 다운로드 옵션 ── */
+    .download-options {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: var(--bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .download-options-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      margin-bottom: 10px;
+      display: block;
+    }
+    .radio-group {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .radio-option input { accent-color: var(--accent); cursor: pointer; }
+    .radio-option:has(input:checked) {
+      border-color: var(--accent);
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .action-row {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .selected-count {
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-right: auto;
+    }
+
+    /* ── 토스트 ── */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--ink);
+      color: var(--white);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── 에러 ── */
+    .error-msg {
+      font-size: 12px;
+      color: var(--error);
+      margin-top: 6px;
+    }
+
+    /* ── 모바일 ── */
+    @media (max-width: 480px) {
+      header { padding: 20px 20px 0; }
+      .card { padding: 24px 18px; }
+      .format-input-row { flex-direction: column; }
+      .action-row { flex-direction: column-reverse; }
+      .btn-primary, .btn-secondary { width: 100%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 배경 워터마크 -->
+  <div class="bg-text"><span id="bgText">파일깎기</span></div>
+
+  <div class="page">
+    <header>
+      <div class="logo">파일깎기<span class="logo-dot">.</span></div>
+      <div class="tagline">파일 이름을 한 번에 정돈해요</div>
+    </header>
+
+    <main>
+      <div class="hero">
+        <h1>이름을 수정하고 싶은<br>파일들을 업로드하세요</h1>
+        <p>파일을 올리고 원하는 양식을 입력하면<br>이름을 한 번에 깎아드려요</p>
+      </div>
+
+      <div class="workspace" id="workspace">
+      <div class="card" id="mainCard">
+
+        <!-- 드롭존 -->
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" multiple
+            accept=".txt,.csv,.xlsx,.xls,.pptx,.ppt,.jpg,.jpeg,.png,.pdf,.docx,.doc,.zip" />
+          <div class="dropzone-icon">📂</div>
+          <div class="dropzone-title">파일을 여기에 끌어다 놓거나 클릭해서 선택</div>
+          <div class="dropzone-sub">
+            지원 형식: TXT · CSV · XLSX · PPTX · JPG · PDF · DOCX · ZIP
+          </div>
+          <div class="dropzone-limit">최대 10개 · 파일당 50MB · 전체 200MB</div>
+        </div>
+
+        <!-- 파일 목록 -->
+        <div class="file-list" id="fileList"></div>
+        <div class="file-count" id="fileCount"></div>
+        <div class="content-access-toggle" id="contentAccessToggle" style="display:none"></div>
+
+        <!-- 양식 입력 -->
+        <div class="format-section" id="formatSection" style="display:none">
+          <label class="format-label">원하는 파일명 양식을 입력하세요</label>
+          <div class="format-hint">
+            <b>{날짜}</b> = 오늘 날짜(YYYYMMDD) &nbsp;|&nbsp;
+            <b>{원본}</b> = 원래 파일명("찐최종"/"최종본"/"v1" 같은 표현은 자동으로 지워져요) &nbsp;|&nbsp;
+            <b>{이름}</b> = 내 이름 &nbsp;|&nbsp;
+            <b>{버전}</b> = 같은 프로젝트로 묶인 파일 안에서의 버전(v1=원본 ~ vN=최종) &nbsp;|&nbsp;
+            <b>{그룹}</b> = 자동으로 묶인 프로젝트 그룹 번호<br>
+            예시: <code>보고서_찐찐최종.docx</code> → <code>{원본}_{버전}</code> → <code>보고서_v2.docx</code>
+          </div>
+          <div class="format-tags">
+            <button class="tag-btn" onclick="insertTag('{날짜}')">{날짜}</button>
+            <button class="tag-btn" onclick="insertTag('{원본}')">{원본}</button>
+            <button class="tag-btn" onclick="insertTag('{이름}')">{이름}</button>
+            <button class="tag-btn" onclick="insertTag('{버전}')">{버전}</button>
+            <button class="tag-btn" onclick="insertTag('{그룹}')">{그룹}</button>
+            <button class="tag-btn" onclick="insertTag('_')">밑줄 _</button>
+            <button class="tag-btn" onclick="insertTag('-')">하이픈 -</button>
+          </div>
+          <div class="format-input-row">
+            <input type="text" class="format-input" id="formatInput"
+              placeholder="{날짜}_{원본}_{이름}" />
+            <button class="btn-primary" id="previewBtn" onclick="generatePreview()">미리보기</button>
+          </div>
+          <div class="error-msg" id="formatError"></div>
+        </div>
+
+      </div>
+
+      <!-- 미리보기 -->
+      <div class="card preview-card" id="previewSection" style="display:none">
+          <div class="preview-title">변환 미리보기</div>
+
+          <label class="select-all-row">
+            <input type="checkbox" id="selectAll" class="custom-checkbox" onchange="toggleSelectAll(this)" checked />
+            전체 선택 / 해제
+          </label>
+
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th class="check-col"></th>
+                <th>변환 전</th>
+                <th class="arrow-col"></th>
+                <th>변환 후</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+
+          <!-- 다운로드 옵션 -->
+          <div class="download-options">
+            <span class="download-options-label">다운로드 방식 선택</span>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="dlMode" value="zip" checked /> 📦 ZIP으로 한 번에
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="dlMode" value="individual" /> 📄 파일 개별 다운로드
+              </label>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <span class="selected-count" id="selectedCount"></span>
+            <button class="btn-secondary" onclick="resetPreview()">다시 수정</button>
+            <button class="btn-primary" onclick="downloadFiles()">✓ 다운로드</button>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 내용 분석 허용 팝업 -->
+  <div class="modal-overlay" id="permissionModal">
+    <div class="modal-box">
+      <div class="modal-title">파일 내용을 분석해서 더 정확히 묶을까요?</div>
+      <div class="modal-desc">
+        "찐최종", "최종본"처럼 이름만으로 구분이 어려운 파일들을 위해,
+        업로드한 파일의 텍스트 내용을 <b>이 브라우저 안에서만</b> 읽어
+        비슷한 프로젝트끼리 자동으로 묶어드릴 수 있어요.<br><br>
+        내용은 외부로 전송되지 않으며, 언제든 다시 껐다 켤 수 있어요.
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="permissionDeny">파일명만 사용</button>
+        <button class="btn-primary" id="permissionAllow">내용 분석 허용</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── 상태 ──
+    let files = [];
+    const MAX_FILES = 10;
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    const MAX_TOTAL_SIZE = 200 * 1024 * 1024;
+
+    const today = (() => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}${m}${day}`;
+    })();
+
+    // ── 배경 워터마크 크기/위치 자동 조절 (좌우 잘림 방지 + 모바일 가림 방지) ──
+    const MOBILE_BREAKPOINT = 480; // 기존 반응형 브레이크포인트와 동일
+
+    function fitBgText() {
+      const container = document.querySelector('.bg-text');
+      const span = document.getElementById('bgText');
+      const sidePadding = 24; // 화면 가장자리와의 최소 여백
+      const maxWidth = window.innerWidth - sidePadding * 2;
+
+      const refSize = 100; // 기준 폰트 크기(px)로 측정해 비율 계산
+      span.style.fontSize = refSize + 'px';
+      const refWidth = span.getBoundingClientRect().width;
+      let newSize = (maxWidth / refWidth) * refSize;
+
+      const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+
+      if (isMobile) {
+        // 모바일에서는 카드가 화면 폭을 거의 그대로 차지해 글자가 카드 뒤로
+        // 완전히 숨어버리므로, 카드 위 여백(헤더+안내문 영역)에 들어가는
+        // 크기로 줄이고 그 여백 한가운데로 위치를 옮겨 항상 보이게 한다.
+        const card = document.getElementById('mainCard');
+        const gap = Math.max(card.getBoundingClientRect().top, 0);
+
+        newSize = Math.min(newSize, gap * 0.8);
+        newSize = Math.max(newSize, 32); // 너무 작아지지 않도록 최소값 보장
+        span.style.fontSize = newSize + 'px';
+
+        const offset = gap / 2 - window.innerHeight / 2;
+        container.style.transform = `translateY(${offset}px)`;
+      } else {
+        // 세로로 너무 커지지 않도록, 화면 높이 대비 상한도 적용
+        newSize = Math.min(newSize, window.innerHeight * 0.6);
+        newSize = Math.max(newSize, 60); // 최소 크기 보장
+        span.style.fontSize = newSize + 'px';
+        container.style.transform = '';
+      }
+    }
+    fitBgText();
+    window.addEventListener('resize', fitBgText);
+    window.addEventListener('orientationchange', fitBgText);
+    new ResizeObserver(fitBgText).observe(document.getElementById('mainCard'));
+
+    // ── 드래그앤드롭 ──
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      addFiles([...e.dataTransfer.files]);
+    });
+    fileInput.addEventListener('change', () => {
+      addFiles([...fileInput.files]);
+      fileInput.value = '';
+    });
+
+    async function addFiles(newFiles) {
+      let totalSize = files.reduce((s, f) => s + f.size, 0);
+      let added = 0;
+
+      for (const f of newFiles) {
+        if (files.length >= MAX_FILES) { showToast(`최대 ${MAX_FILES}개까지 업로드할 수 있어요`); break; }
+        if (f.size > MAX_FILE_SIZE) { showToast(`${f.name}: 파일이 50MB를 초과했어요`); continue; }
+        if (totalSize + f.size > MAX_TOTAL_SIZE) { showToast('전체 파일 크기가 200MB를 초과했어요'); break; }
+        if (files.find(x => x.name === f.name)) { showToast(`${f.name}: 이미 추가된 파일이에요`); continue; }
+        files.push(f);
+        totalSize += f.size;
+        added++;
+      }
+
+      await refreshGroupingAndRender();
+      if (added > 0) resetPreview();
+    }
+
+    // ── 내용 분석 허용 여부 ──
+    let contentAccessAllowed = null; // null = 아직 안 물어봄
+    const contentCache = new Map(); // File → 추출된 텍스트
+
+    function askContentPermission() {
+      return new Promise(resolve => {
+        const modal = document.getElementById('permissionModal');
+        const allowBtn = document.getElementById('permissionAllow');
+        const denyBtn = document.getElementById('permissionDeny');
+        modal.classList.add('show');
+
+        function cleanup(result) {
+          modal.classList.remove('show');
+          allowBtn.removeEventListener('click', onAllow);
+          denyBtn.removeEventListener('click', onDeny);
+          resolve(result);
+        }
+        function onAllow() { cleanup(true); }
+        function onDeny() { cleanup(false); }
+        allowBtn.addEventListener('click', onAllow);
+        denyBtn.addEventListener('click', onDeny);
+      });
+    }
+
+    function updateContentAccessToggle() {
+      const el = document.getElementById('contentAccessToggle');
+      if (files.length === 0) { el.style.display = 'none'; return; }
+      el.style.display = 'block';
+      el.innerHTML = contentAccessAllowed
+        ? `내용 기반 분석: <b>켜짐</b> · <a onclick="toggleContentAccess()">끄기</a>`
+        : `내용 기반 분석: <b>꺼짐</b>(파일명만 사용) · <a onclick="toggleContentAccess()">켜기</a>`;
+    }
+
+    async function toggleContentAccess() {
+      if (contentAccessAllowed) {
+        contentAccessAllowed = false;
+        updateContentAccessToggle();
+        renderFileList();
+      } else {
+        contentAccessAllowed = await askContentPermission();
+        updateContentAccessToggle();
+        if (contentAccessAllowed) await ensureContentExtracted();
+        renderFileList();
+      }
+    }
+
+    // ── 파일 내용 추출 (txt/csv는 그대로, docx/pptx/xlsx는 내부 XML에서 텍스트만 추출) ──
+    async function extractFileText(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      try {
+        if (ext === 'txt' || ext === 'csv') {
+          return (await file.text()).slice(0, 20000);
+        }
+        if (ext === 'docx' || ext === 'pptx' || ext === 'xlsx') {
+          if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+          const zip = await JSZip.loadAsync(file);
+          const parts = [];
+          if (ext === 'docx') {
+            const doc = zip.file('word/document.xml');
+            if (doc) parts.push(await doc.async('string'));
+          } else if (ext === 'pptx') {
+            const slideNames = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
+            for (const n of slideNames) parts.push(await zip.file(n).async('string'));
+          } else if (ext === 'xlsx') {
+            const shared = zip.file('xl/sharedStrings.xml');
+            if (shared) parts.push(await shared.async('string'));
+          }
+          return parts.join(' ').replace(/<[^>]+>/g, ' ').slice(0, 20000);
+        }
+      } catch (e) {
+        return ''; // 손상되었거나 형식이 예상과 다르면 내용 없이 파일명 유사도로만 판단
+      }
+      return ''; // pdf/이미지/구버전 doc·ppt/zip 등은 브라우저에서 텍스트 추출이 어려움
+    }
+
+    async function ensureContentExtracted() {
+      const pending = files.filter(f => !contentCache.has(f));
+      if (pending.length === 0) return;
+      await Promise.all(pending.map(async f => contentCache.set(f, await extractFileText(f))));
+    }
+
+    async function refreshGroupingAndRender() {
+      renderFileList(); // 1차: 파일명 유사도만으로 즉시 표시
+
+      if (files.length > 0 && contentAccessAllowed === null) {
+        contentAccessAllowed = await askContentPermission();
+        updateContentAccessToggle();
+      } else {
+        updateContentAccessToggle();
+      }
+
+      if (contentAccessAllowed) {
+        const pending = files.filter(f => !contentCache.has(f));
+        if (pending.length > 0) {
+          showToast('파일 내용을 분석하는 중...');
+          await ensureContentExtracted();
+          renderFileList(); // 2차: 내용 유사도까지 반영해서 다시 표시
+        }
+      }
+    }
+
+    // ── 파일명/내용 기반 유사 그룹 판별 ──
+    // "찐최종", "최종본" 같은 흔한 버전 표현을 걷어내고 핵심 이름만 비교한다.
+    const NOISE_WORDS = [
+      '최종본', '최종', '완료본', '완료', '수정본', '수정', '사본', '복사본', 'copy',
+      'final', 'fin', 'ver', 'version', 'new', '신규', '확정', '제출용', '제출',
+      'draft', '초안', '진짜', '찐', '레알'
+    ];
+
+    function normalizeBaseName(name) {
+      const dot = name.lastIndexOf('.');
+      let base = (dot > -1 ? name.slice(0, dot) : name).toLowerCase();
+      // 구분자를 먼저 공백으로 바꿔야 "_v1_"처럼 붙어있는 표기에서도
+      // 아래 \b(단어 경계) 정규식이 제대로 걸린다.
+      base = base.replace(/[_\-.]+/g, ' ');
+      NOISE_WORDS.forEach(w => { base = base.split(w).join(' '); });
+      base = base.replace(/\(\s*\d+\s*\)/g, ' ');    // (1), (2) 같은 사본 번호
+      base = base.replace(/\bv\d+\b/g, ' ');          // v1, v2 표기
+      base = base.replace(/\b\d{6,8}\b/g, ' ');       // 날짜로 보이는 6~8자리 숫자
+      base = base.replace(/[^\p{L}\p{N}\s]/gu, ' ');
+      return base.replace(/\s+/g, ' ').trim();
+    }
+
+    function nameTokens(name) {
+      return new Set(normalizeBaseName(name).split(' ').filter(Boolean));
+    }
+
+    // {원본} 태그에 넣을 때 쓰는 정리 함수. 그룹 판별용 normalizeBaseName과 달리
+    // 대소문자·날짜는 그대로 두고, "찐최종/최종본/v1" 같은 낡은 버전 표시만 지운다
+    // (새로 붙는 {버전} 태그와 중복되지 않도록).
+    function cleanBaseName(baseName) {
+      let base = baseName;
+      NOISE_WORDS.forEach(w => { base = base.replace(new RegExp(w, 'gi'), ' '); });
+      base = base.replace(/\(\s*\d+\s*\)/g, ' ');                      // (1), (2) 같은 사본 번호
+      base = base.replace(/(^|[_\-\s])v\d+(?=[_\-\s]|$)/gi, '$1 ');    // v1, v2 표기
+      base = base.replace(/[_\-]+/g, ' ');
+      base = base.replace(/\s+/g, ' ').trim();
+      base = base.replace(/ /g, '_');
+      return base || baseName; // 다 지워지면 원본 이름 유지 (빈 파일명 방지)
+    }
+
+    // {원본}과 {이름} 등 서로 다른 태그에 같은 단어("최호재" 등)가 겹쳐 들어갈 때,
+    // 완성된 파일명에서 중복된 단어를 한 번만 남긴다.
+    function dedupeNameTokens(str) {
+      const tokens = str.split(/[_\-]+/).filter(Boolean);
+      const seen = new Set();
+      const kept = [];
+      tokens.forEach(t => {
+        if (seen.has(t)) return;
+        seen.add(t);
+        kept.push(t);
+      });
+      return kept.join('_');
+    }
+
+    function contentTokens(text) {
+      return new Set(
+        text.toLowerCase()
+          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+          .split(/\s+/)
+          .filter(w => w.length >= 2)
+      );
+    }
+
+    // 여러 파일에 공통으로 등장하는 단어(예: 프로젝트명, 작성자)는 가중치를 낮추고,
+    // 소수의 파일에서만 등장하는 단어(예: 문서 종류)는 가중치를 높인다 (TF-IDF 아이디어).
+    function buildIdf(tokenSets) {
+      const df = new Map();
+      tokenSets.forEach(set => set.forEach(t => df.set(t, (df.get(t) || 0) + 1)));
+      const n = tokenSets.length;
+      const idf = new Map();
+      df.forEach((c, t) => idf.set(t, Math.log((n + 1) / (c + 1)) + 1));
+      return idf;
+    }
+
+    function weightedJaccard(setA, setB, idf) {
+      if (setA.size === 0 || setB.size === 0) return 0;
+      const union = new Set([...setA, ...setB]);
+      let interW = 0, unionW = 0;
+      union.forEach(t => {
+        const w = idf.get(t) || 1;
+        unionW += w;
+        if (setA.has(t) && setB.has(t)) interW += w;
+      });
+      return unionW ? interW / unionW : 0;
+    }
+
+    const GROUP_THRESHOLD = 0.4; // 휴리스틱 기준값 — 필요시 조정 가능
+
+    // lastModified 오름차순으로 v1(원본)~vN(최종)을 부여하되,
+    // "같은 프로젝트"로 판단된 파일끼리만 묶어서 버전을 매긴다.
+    function computeGroups() {
+      const n = files.length;
+      const nameSets = files.map(f => nameTokens(f.name));
+      const nameIdf = buildIdf(nameSets);
+
+      const contentSets = files.map(f => {
+        const text = contentCache.get(f);
+        return text ? contentTokens(text) : null;
+      });
+      const contentIdf = buildIdf(contentSets.filter(Boolean));
+
+      const parent = Array.from({ length: n }, (_, i) => i);
+      const find = x => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+      const union = (x, y) => { const rx = find(x), ry = find(y); if (rx !== ry) parent[rx] = ry; };
+
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const nameSim = weightedJaccard(nameSets[i], nameSets[j], nameIdf);
+          let score = nameSim;
+          if (contentAccessAllowed && contentSets[i] && contentSets[j]) {
+            const contentSim = weightedJaccard(contentSets[i], contentSets[j], contentIdf);
+            score = Math.max(nameSim, contentSim);
+          }
+          if (score >= GROUP_THRESHOLD) union(i, j);
+        }
+      }
+
+      const groupsMap = new Map();
+      for (let i = 0; i < n; i++) {
+        const root = find(i);
+        if (!groupsMap.has(root)) groupsMap.set(root, []);
+        groupsMap.get(root).push(i);
+      }
+
+      const groups = [...groupsMap.values()]
+        .map(idxs => idxs.slice().sort((a, b) => files[a].lastModified - files[b].lastModified))
+        .sort((a, b) => files[a[0]].lastModified - files[b[0]].lastModified);
+
+      const versionMap = new Map();
+      const groupIndexMap = new Map();
+      const groupSizeMap = new Map();
+      groups.forEach((idxs, gi) => {
+        idxs.forEach((idx, pos) => {
+          versionMap.set(idx, pos + 1);
+          groupIndexMap.set(idx, gi + 1);
+          groupSizeMap.set(idx, idxs.length);
+        });
+      });
+
+      return { groups, versionMap, groupIndexMap, groupSizeMap };
+    }
+
+    function versionBadgeHtml(version, total) {
+      if (total <= 1) return `<span class="version-badge">v${version}</span>`;
+      if (version === 1) return `<span class="version-badge is-original">v${version} · 원본</span>`;
+      if (version === total) return `<span class="version-badge is-latest">v${version} · 최종</span>`;
+      return `<span class="version-badge">v${version}</span>`;
+    }
+
+    function renderFileList() {
+      const list = document.getElementById('fileList');
+      const count = document.getElementById('fileCount');
+      const fmt = document.getElementById('formatSection');
+      const { versionMap, groupIndexMap, groupSizeMap, groups } = computeGroups();
+      const showGroups = groups.length > 1;
+
+      list.innerHTML = '';
+      let lastGroup = null;
+      groups.flat().forEach(i => {
+        const f = files[i];
+        if (showGroups && groupIndexMap.get(i) !== lastGroup) {
+          lastGroup = groupIndexMap.get(i);
+          const divider = document.createElement('div');
+          divider.className = 'group-divider';
+          divider.textContent = `그룹 ${lastGroup} · ${groupSizeMap.get(i)}개`;
+          list.appendChild(divider);
+        }
+
+        const ext = f.name.split('.').pop().toUpperCase();
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerHTML = `
+          <span class="file-ext">${ext}</span>
+          ${versionBadgeHtml(versionMap.get(i), groupSizeMap.get(i))}
+          <span class="file-name" title="${f.name}">${f.name}</span>
+          <button class="file-remove" onclick="removeFile(${i})" title="제거">×</button>
+        `;
+        list.appendChild(item);
+      });
+
+      count.textContent = files.length > 0 ? `${files.length}개 파일 선택됨` : '';
+      fmt.style.display = files.length > 0 ? 'block' : 'none';
+    }
+
+    async function removeFile(idx) {
+      files.splice(idx, 1);
+      await refreshGroupingAndRender();
+      resetPreview();
+    }
+
+    // ── 태그 삽입 ──
+    function insertTag(tag) {
+      const input = document.getElementById('formatInput');
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const val = input.value;
+      input.value = val.slice(0, start) + tag + val.slice(end);
+      input.focus();
+      input.setSelectionRange(start + tag.length, start + tag.length);
+    }
+
+    // ── 미리보기 생성 ──
+    function generatePreview() {
+      const formatInput = document.getElementById('formatInput');
+      const errorEl = document.getElementById('formatError');
+      const previewSection = document.getElementById('previewSection');
+      const previewBody = document.getElementById('previewBody');
+      let format = formatInput.value.trim();
+
+      errorEl.textContent = '';
+      if (!format) { errorEl.textContent = '양식을 입력해주세요'; return; }
+      if (files.length === 0) { errorEl.textContent = '파일을 먼저 업로드해주세요'; return; }
+
+      if (format.includes('{이름}')) {
+        const nameMatch = format.match(/\{이름:([^}]+)\}/);
+        if (!nameMatch) {
+          const name = prompt('파일명에 들어갈 이름을 입력하세요 (예: 홍길동):');
+          if (!name) return;
+          format = format.replace(/\{이름\}/g, name);
+        }
+      }
+
+      previewBody.innerHTML = '';
+      const { versionMap, groupIndexMap, groupSizeMap, groups } = computeGroups();
+      const showGroups = groups.length > 1;
+      let lastGroup = null;
+
+      groups.flat().forEach(i => {
+        const f = files[i];
+        if (showGroups && groupIndexMap.get(i) !== lastGroup) {
+          lastGroup = groupIndexMap.get(i);
+          const trHead = document.createElement('tr');
+          trHead.className = 'group-row';
+          trHead.innerHTML = `<td colspan="4">그룹 ${lastGroup} · ${groupSizeMap.get(i)}개</td>`;
+          previewBody.appendChild(trHead);
+        }
+
+        const dotIdx = f.name.lastIndexOf('.');
+        const baseName = dotIdx > -1 ? f.name.slice(0, dotIdx) : f.name;
+        const ext = dotIdx > -1 ? f.name.slice(dotIdx) : '';
+        const version = versionMap.get(i);
+
+        const core = format
+          .replace(/\{날짜\}/g, today)
+          .replace(/\{원본\}/g, cleanBaseName(baseName))
+          .replace(/\{버전\}/g, `v${version}`)
+          .replace(/\{그룹\}/g, `그룹${groupIndexMap.get(i)}`)
+          .replace(/[\\/:*?"<>|]/g, '_');
+        const newName = dedupeNameTokens(core) + ext;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="check-col"><input type="checkbox" class="custom-checkbox file-checkbox" data-idx="${i}" checked onchange="updateSelectedCount()" /></td>
+          <td>${versionBadgeHtml(version, groupSizeMap.get(i))} ${f.name}</td>
+          <td class="arrow-col">→</td>
+          <td class="new-name">${newName}</td>
+        `;
+        previewBody.appendChild(tr);
+      });
+
+      document.getElementById('selectAll').checked = true;
+      updateSelectedCount();
+      previewSection.style.display = 'block';
+      previewSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function toggleSelectAll(el) {
+      document.querySelectorAll('.file-checkbox').forEach(cb => cb.checked = el.checked);
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      const all = document.querySelectorAll('.file-checkbox');
+      const checked = document.querySelectorAll('.file-checkbox:checked');
+      document.getElementById('selectedCount').textContent = `${checked.length}개 선택됨`;
+      document.getElementById('selectAll').checked = checked.length === all.length;
+      document.getElementById('selectAll').indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+
+    function resetPreview() {
+      document.getElementById('previewSection').style.display = 'none';
+    }
+
+    // ── 다운로드 ──
+    async function downloadFiles() {
+      const formatInput = document.getElementById('formatInput');
+      let format = formatInput.value.trim();
+      const mode = document.querySelector('input[name="dlMode"]:checked').value;
+
+      if (format.includes('{이름}')) {
+        const name = prompt('파일명에 들어갈 이름을 입력하세요 (예: 홍길동):');
+        if (!name) return;
+        format = format.replace(/\{이름\}/g, name);
+      }
+
+      // 선택된 파일만 추출
+      const checkedBoxes = [...document.querySelectorAll('.file-checkbox:checked')];
+      if (checkedBoxes.length === 0) { showToast('다운로드할 파일을 선택해주세요'); return; }
+
+      const { versionMap, groupIndexMap } = computeGroups();
+      const selectedPairs = checkedBoxes.map(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        const f = files[idx];
+        const dotIdx = f.name.lastIndexOf('.');
+        const baseName = dotIdx > -1 ? f.name.slice(0, dotIdx) : f.name;
+        const ext = dotIdx > -1 ? f.name.slice(dotIdx) : '';
+        const core = format
+          .replace(/\{날짜\}/g, today)
+          .replace(/\{원본\}/g, cleanBaseName(baseName))
+          .replace(/\{버전\}/g, `v${versionMap.get(idx)}`)
+          .replace(/\{그룹\}/g, `그룹${groupIndexMap.get(idx)}`)
+          .replace(/[\\/:*?"<>|]/g, '_');
+        const newName = dedupeNameTokens(core) + ext;
+        return { file: f, newName };
+      });
+
+      if (mode === 'zip') {
+        // ── ZIP 다운로드 (JSZip CDN) ──
+        if (!window.JSZip) {
+          showToast('ZIP 라이브러리 로딩 중...');
+          await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+        }
+        const zip = new JSZip();
+        for (const { file, newName } of selectedPairs) {
+          const buf = await file.arrayBuffer();
+          zip.file(newName, buf);
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `파일깎기_${today}.zip`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+        showToast(`${selectedPairs.length}개 파일을 ZIP으로 다운로드했어요!`);
+      } else {
+        // ── 개별 다운로드 ──
+        for (const { file, newName } of selectedPairs) {
+          const url = URL.createObjectURL(file);
+          const a = document.createElement('a');
+          a.href = url; a.download = newName;
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a); URL.revokeObjectURL(url);
+          await new Promise(r => setTimeout(r, 150));
+        }
+        showToast(`${selectedPairs.length}개 파일 개별 다운로드 완료!`);
+      }
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src; s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    // ── 토스트 ──
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+  </script>
+</body>
+</html>
