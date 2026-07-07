@@ -439,7 +439,22 @@
     }
     .preview-table tr:last-child td { border-bottom: none; }
     .arrow-col { color: var(--ink-muted); text-align: center; width: 24px; }
-    .new-name { color: var(--accent); font-weight: 500; }
+
+    /* ── 변경 부분만 강조하는 diff 스타일 ── */
+    .new-name { line-height: 1.6; }
+    .diff-added {
+      color: var(--accent);
+      font-weight: 700;
+      background: var(--accent-light);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .diff-kept { color: var(--ink-muted); }
+    .diff-sep { color: #ccc; }
+    .diff-removed {
+      color: #bbb;
+      text-decoration: line-through;
+    }
 
     /* ── 체크박스 ── */
     .check-col { width: 36px; text-align: center; }
@@ -1048,6 +1063,41 @@
       return { groups, versionMap, groupIndexMap, groupSizeMap };
     }
 
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[ch]));
+    }
+
+    // 변환 전 이름에서 {원본} 태그가 지워버릴 노이즈 표현(찐최종/v1/사본번호 등)에
+    // 취소선을 그어, 미리보기에서 "무엇이 없어지는지"를 바로 보여준다.
+    function highlightRemovedTokens(rawName) {
+      const dotIdx = rawName.lastIndexOf('.');
+      const base = dotIdx > -1 ? rawName.slice(0, dotIdx) : rawName;
+      const ext = dotIdx > -1 ? rawName.slice(dotIdx) : '';
+      let html = escapeHtml(base);
+      NOISE_WORDS.forEach(w => {
+        const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        html = html.replace(re, m => `<span class="diff-removed">${m}</span>`);
+      });
+      html = html.replace(/\(\s*\d+\s*\)/g, m => `<span class="diff-removed">${m}</span>`);
+      html = html.replace(/(^|[_\-\s])v\d+(?=[_\-\s]|$)/gi, (m, p1) => `${p1}<span class="diff-removed">${m.slice(p1.length)}</span>`);
+      return html + escapeHtml(ext);
+    }
+
+    // 변환 후 이름에서 {날짜}/{버전}/{그룹}처럼 새로 붙는 토큰만 강조하고,
+    // 나머지({원본}·사용자가 입력한 고정 텍스트)는 톤다운해서 눈에 띄는 부분을 좁혀준다.
+    function highlightNewName(newName, version, groupIdx) {
+      const dotIdx = newName.lastIndexOf('.');
+      const base = dotIdx > -1 ? newName.slice(0, dotIdx) : newName;
+      const ext = dotIdx > -1 ? newName.slice(dotIdx) : '';
+      const addedTokens = new Set([today, `v${version}`, `그룹${groupIdx}`]);
+      const body = base.split('_')
+        .map(t => `<span class="${addedTokens.has(t) ? 'diff-added' : 'diff-kept'}">${escapeHtml(t)}</span>`)
+        .join('<span class="diff-sep">_</span>');
+      return body + `<span class="diff-kept">${escapeHtml(ext)}</span>`;
+    }
+
     function versionBadgeHtml(version, total) {
       if (total <= 1) return `<span class="version-badge">v${version}</span>`;
       if (version === 1) return `<span class="version-badge is-original">v${version} · 원본</span>`;
@@ -1080,7 +1130,7 @@
         item.innerHTML = `
           <span class="file-ext">${ext}</span>
           ${versionBadgeHtml(versionMap.get(i), groupSizeMap.get(i))}
-          <span class="file-name" title="${f.name}">${f.name}</span>
+          <span class="file-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
           <button class="file-remove" onclick="removeFile(${i})" title="제거">×</button>
         `;
         list.appendChild(item);
@@ -1158,9 +1208,9 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="check-col"><input type="checkbox" class="custom-checkbox file-checkbox" data-idx="${i}" data-version="${version}" data-total="${groupSizeMap.get(i)}" checked onchange="onFileCheckboxChange()" /></td>
-          <td>${versionBadgeHtml(version, groupSizeMap.get(i))} ${f.name}</td>
+          <td>${versionBadgeHtml(version, groupSizeMap.get(i))} ${highlightRemovedTokens(f.name)}</td>
           <td class="arrow-col">→</td>
-          <td class="new-name">${newName}</td>
+          <td class="new-name">${highlightNewName(newName, version, groupIndexMap.get(i))}</td>
         `;
         previewBody.appendChild(tr);
       });
